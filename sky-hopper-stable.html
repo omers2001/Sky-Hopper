@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Sky Hopper — Lobby Edition (Stable Build)</title>
+  <style>
+    :root{
+      --bg-top:#74c0fc; --bg-mid:#a5d8ff; --bg-bottom:#a3d9a5;
+      --tube:#2b8a3e; --tubeLip:#37b24d; --bird:#ffd43b; --birdEye:#212529;
+      --ink:#111827; --muted:#64748b; --brand:#4263eb; --card:rgba(255,255,255,.92); --shadow:rgba(0,0,0,.18);
+    }
+    html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans",sans-serif;background:#0e0f10;color:#fff}
+    .wrap{display:grid;place-items:center;height:100%;padding:16px}
+    .frame{width:min(540px,100%);aspect-ratio:9/16;background:linear-gradient(180deg,var(--bg-top),var(--bg-mid) 55%,var(--bg-bottom) 85%);border-radius:24px;box-shadow:0 10px 30px var(--shadow);position:relative;overflow:hidden}
+    canvas{width:100%;height:100%;display:block}
+
+    .hud{position:absolute;inset:0;pointer-events:none;display:flex;flex-direction:column}
+    .topbar{display:flex;justify-content:space-between;gap:8px;padding:10px 12px;color:#fff;font-weight:700;text-shadow:0 2px 4px rgba(0,0,0,.35)}
+    .left,.right{display:flex;gap:8px;align-items:center}
+    .badge{background:rgba(0,0,0,.25);padding:.3rem .6rem;border-radius:999px}
+    .btn-min{pointer-events:auto;border:0;border-radius:999px;padding:.35rem .6rem;font-weight:700;cursor:pointer;background:rgba(255,255,255,.85)}
+
+    .center{margin:auto;display:grid;place-items:center;text-align:center;color:#fff;text-shadow:0 2px 8px rgba(0,0,0,.6)}
+    .card{pointer-events:auto;width:min(86%,460px);background:var(--card);color:var(--ink);border-radius:18px;padding:16px;border:1px solid rgba(0,0,0,.06);box-shadow:0 10px 24px rgba(0,0,0,.15)}
+    h1.title{margin:.2rem 0 0;font-size:28px;color:#0f172a;text-shadow:none}
+    p.lead{margin:.35rem 0 1rem;color:var(--muted)}
+    .seg{display:flex;gap:8px;justify-content:center}
+    .seg button{flex:1;border:1px solid rgba(0,0,0,.08);background:#fff;color:#0f172a;border-radius:12px;padding:10px 12px;cursor:pointer;font-weight:800}
+    .seg button.active{background:var(--brand);color:#fff;border-color:transparent}
+    .form{display:grid;gap:10px;margin-top:12px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+    @media (max-width:420px){ .row{grid-template-columns:1fr} }
+    label{display:grid;text-align:right;gap:6px;font-weight:700;color:#0f172a}
+    select{appearance:none;border:1px solid rgba(0,0,0,.1);border-radius:12px;padding:10px 12px;background:#fff;color:#0f172a;font-weight:600}
+    .actions{display:grid;gap:8px;margin-top:12px}
+    .primary{border:0;border-radius:12px;padding:14px 16px;font-weight:900;background:var(--brand);color:#fff;cursor:pointer}
+    .sub{display:flex;justify-content:space-between;gap:8px}
+    .link{border:0;background:transparent;color:#0f172a;opacity:.8;cursor:pointer;font-weight:700}
+
+    .panel{pointer-events:auto;background:rgba(0,0,0,.35);backdrop-filter:blur(6px);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:12px}
+    .hidden{display:none}
+    .footer{position:absolute;bottom:8px;left:0;right:0;display:flex;justify-content:center;color:#fff;opacity:.85;font-size:12px;text-shadow:0 2px 6px rgba(0,0,0,.5)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="frame" id="frame">
+      <canvas id="game" aria-label="Sky Hopper Game"></canvas>
+      <div class="hud">
+        <div class="topbar">
+          <div class="left">
+            <div class="badge" id="score">0</div>
+            <div class="badge" id="best">שיא: 0</div>
+            <div class="badge" id="speed">מהירות: 1.0x</div>
+          </div>
+          <div class="right">
+            <button class="btn-min" id="btnMusic" title="מוזיקה">🎵</button>
+            <button class="btn-min" id="btnMute" title="מיוט SFX">🔊</button>
+            <button class="btn-min" id="btnPause" title="עצור/המשך">⏸️</button>
+            <button class="btn-min" id="btnHome" title="חזרה ללובי">🏠</button>
+          </div>
+        </div>
+
+        <!-- LOBBY -->
+        <div class="center" id="lobby">
+          <div class="card">
+            <h1 class="title">Sky Hopper — Lobby</h1>
+            <p class="lead">בחר/י מצב ומשחק מיד. אפשר לשנות קושי, סקין ורקע מתחת.</p>
+            <div class="seg" role="tablist" aria-label="מצב משחק">
+              <button id="modeClassic" class="active" role="tab" aria-selected="true">🎮 קלאסי</button>
+              <button id="modeTraining" role="tab" aria-selected="false">🧪 אימון</button>
+            </div>
+
+            <div class="form">
+              <div class="row">
+                <label>קושי
+                  <select id="selDiff">
+                    <option value="easy">קל</option>
+                    <option value="normal" selected>רגיל</option>
+                    <option value="hard">קשה</option>
+                  </select>
+                </label>
+                <label>סקין
+                  <select id="selSkin">
+                    <option value="yellow" selected>🐣 צהוב</option>
+                    <option value="blue">🪽 כחול</option>
+                    <option value="red">🔥 אדום</option>
+                    <option value="mint">🍃 מנטה</option>
+                  </select>
+                </label>
+              </div>
+              <div class="row">
+                <label>רקע
+                  <select id="selBg">
+                    <option value="meadow" selected>🌿 אחו</option>
+                    <option value="sunset">🌇 שקיעה</option>
+                    <option value="night">🌙 לילה</option>
+                  </select>
+                </label>
+                <div></div>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="primary" id="btnStart">▶️ התחל/י משחק</button>
+              <div class="sub">
+                <button class="link" id="btnShare">📤 שתף/י שיא</button>
+                <button class="link" id="btnResetBest">♻️ אפס שיא</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RESULTS -->
+        <div class="center hidden" id="results">
+          <h1 class="title">סיום משחק</h1>
+          <div class="panel" style="margin-top:10px">
+            <div style="margin-bottom:10px"><span class="badge">ניקוד:</span><span class="badge" id="finalScore">0</span> <span class="badge">מדליה:</span><span class="badge" id="medal">—</span></div>
+            <div class="btns">
+              <button class="btn-min" id="btnAgain">משחק חדש</button>
+              <button class="btn-min" id="btnLobby">חזרה ל-Lobby</button>
+            </div>
+          </div>
+          <div id="achUnlocked" class="panel hidden" style="margin-top:8px">
+            <div style="font-weight:800;margin-bottom:6px">🏆 הישגים שנפתחו</div>
+            <ul id="achList" style="text-align:right;margin:0;padding-inline-start:20px"></ul>
+          </div>
+        </div>
+
+        <div class="footer">עכבר/נגיעה/רווח = קפיצה • P = עצירה • M = מיוט • 🎵 = מוזיקת רקע</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function(){
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    function main(){
+      // ===== BASIC SETUP =====
+      const DPR = Math.max(1, Math.min(2, (window.devicePixelRatio || 1)));
+      const $ = id => document.getElementById(id);
+      const canvas = $('game'), ctx = canvas.getContext('2d');
+      const scoreEl=$('score'), bestEl=$('best'), speedEl=$('speed');
+      const lobby=$('lobby'), results=$('results'), finalScoreEl=$('finalScore'), medalEl=$('medal');
+      const btnAgain=$('btnAgain'), btnLobby=$('btnLobby'), btnStart=$('btnStart'), btnShare=$('btnShare'), btnResetBest=$('btnResetBest');
+      const modeClassic=$('modeClassic'), modeTraining=$('modeTraining');
+      const selDiff=$('selDiff'), selSkin=$('selSkin'), selBg=$('selBg');
+      const btnPause=$('btnPause'), btnMute=$('btnMute'), btnMusic=$('btnMusic'), btnHome=$('btnHome');
+
+      // Hard guard for required DOM
+      const req = {canvas,ctx,scoreEl,bestEl,speedEl,lobby,results,finalScoreEl,medalEl,btnAgain,btnLobby,btnStart,btnShare,btnResetBest,modeClassic,modeTraining,selDiff,selSkin,selBg,btnPause,btnMute,btnMusic,btnHome};
+      const missing = Object.entries(req).filter(([,v])=>!v).map(([k])=>k);
+      if(missing.length){
+        const host = document.querySelector('#frame') || document.body;
+        const div = document.createElement('div');
+        div.style.cssText='position:absolute;inset:0;display:grid;place-items:center;background:rgba(0,0,0,.6);color:#fff;font-weight:700;z-index:10;';
+        div.innerHTML='<div style="background:#1f2937;padding:14px 16px;border-radius:12px;max-width:90%;text-align:center">שגיאת טעינה: אלמנטים חסרים.<br/><small>'+missing.join(', ')+'</small></div>';
+        host.appendChild(div);
+        return;
+      }
+
+      // ===== WORLD =====
+      const WORLD={w:360,h:640}, GROUND_H=90, PIPE_W=60;
+      let PIPE_GAP_MIN=120, PIPE_GAP_MAX=170, PIPE_SPACING=190;
+      let SCROLL_SPEED=110, GRAVITY=900, JUMP_VELOCITY=-290;
+
+      // ===== STATE =====
+      let state='lobby'; // lobby | playing | paused | gameover | countdown
+      let training=false;
+      let bird,pipes,score,best,tSincePipe,difficultyTimer,dayPhase;
+      let lastT=0, selectedSkin='yellow', selectedBg='meadow';
+
+      // FX & Flags
+      let particles=[], countdownLeft=0;
+      const DEBUG={skipCountdown:false};
+      let shakeTime=0,shakeDur=0,shakeMag=0;
+      const FEATURES={perfectPass:true,perfectBonus:1,perfectTolerance:6,achievements:true};
+      let perfectCombo=0, perfectComboMax=0, perfectsTotal=0;
+
+      // AUDIO
+      let audioCtx=null, muted=false, musicOn=false, musicSeq=null;
+      function ensureAudio(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch{} } }
+      function beep({freq=600,dur=0.08,type='sine',vol=0.2}){ if(muted||!audioCtx) return; const o=audioCtx.createOscillator(), g=audioCtx.createGain(); o.type=type; o.frequency.value=freq; g.gain.value=vol; o.connect(g).connect(audioCtx.destination); const now=audioCtx.currentTime; o.start(now); g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now+dur); o.stop(now+dur); }
+      const sfx={ jump:()=>beep({freq:740,dur:0.06,type:'triangle',vol:0.25}), point:()=>beep({freq:520,dur:0.05,type:'square',vol:0.18}), hit:()=>{beep({freq:150,dur:0.12,type:'sawtooth',vol:0.3}); setTimeout(()=>beep({freq:90,dur:0.12,type:'sine',vol:0.22}), 90)} };
+      function startMusic(){ if(!audioCtx||musicSeq) return; musicOn=true; const tempo=110, beat=60/tempo; const notes=[523,587,659,698,659,587,523,440]; let i=0; musicSeq=setInterval(()=>{ beep({freq:notes[i%notes.length], dur:beat*0.4, type:'sine', vol:0.12}); i++; }, beat*1000); btnMusic.textContent='🎵'; }
+      function stopMusic(){ musicOn=false; if(musicSeq){ clearInterval(musicSeq); musicSeq=null; } btnMusic.textContent='🔕'; }
+
+      function vibrate(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch{} }
+      function triggerHitEffects(){ vibrate(60); shakeTime=0.35; shakeDur=0.35; shakeMag=6; const bx=bird?bird.x:WORLD.w*0.28, by=bird?bird.y:WORLD.h*0.45; spawnFeathers(bx,by,20,true); }
+      function startCountdown(){ countdownLeft=3; state='countdown'; }
+
+      function resize(){ canvas.width=WORLD.w*DPR; canvas.height=WORLD.h*DPR; canvas.style.width='100%'; canvas.style.height='100%'; ctx.setTransform(DPR,0,0,DPR,0,0); }
+      window.addEventListener('resize', resize); resize();
+
+      function showOnly(name){ [lobby,results].forEach(el=>el.classList.add('hidden')); if(name==='lobby') lobby.classList.remove('hidden'); if(name==='results') results.classList.remove('hidden'); const old=document.getElementById('game-over-overlay'); if(old) old.remove(); }
+
+      function startGame(){ showOnly(null); resetGame(); if(DEBUG.skipCountdown){ state='playing'; } else { startCountdown(); } }
+      function gameOver(){
+        sfx.hit(); triggerHitEffects();
+        if(training){ bird.y=Math.min(bird.y, WORLD.h-GROUND_H-bird.r); bird.vy=0; return; }
+        state='gameover';
+        best=Math.max(best||0,score); try{ localStorage.setItem('skyhopper_best', String(best)); }catch{}
+        updateUI();
+        finalScoreEl.textContent=String(score);
+        medalEl.textContent = score>=25?'🥇 זהב': score>=15?'🥈 כסף': score>=5?'🥉 ארד':'—';
+        const unlocked=checkAndUnlockAchievements();
+        const box=document.getElementById('achUnlocked'), ul=document.getElementById('achList');
+        if(unlocked && unlocked.length){ box.classList.remove('hidden'); ul.innerHTML=unlocked.map(t=>`<li>${t}</li>`).join(''); try{ unlocked.forEach(t=>toast('🏆 '+t)); }catch{} }
+        else { box.classList.add('hidden'); ul.innerHTML=''; }
+        showOnly('results');
+      }
+      function resetGame(){ bird={x:WORLD.w*0.28,y:WORLD.h*0.45,r:14,vy:0,rot:0,blinkT:Math.random()*2+1.5,eyeClosed:false}; pipes=[]; tSincePipe=0; score=0; difficultyTimer=0; dayPhase=0; particles=[]; shakeTime=0; shakeDur=0; shakeMag=0; perfectCombo=0; perfectComboMax=0; updateUI(); }
+
+      function rand(min,max){ return Math.random()*(max-min)+min; }
+      function getCss(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+      function circleRectCollide(cx,cy,cr,rx,ry,rw,rh){ const nx=Math.max(rx,Math.min(cx,rx+rw)), ny=Math.max(ry,Math.min(cy,ry+rh)); const dx=cx-nx, dy=cy-ny; return (dx*dx+dy*dy)<=cr*cr; }
+      function lerp(a,b,t){ return a+(b-a)*t; }
+      function hexToRgb(h){ const m=/^#?([a-f0-9]{2})([a-f0-9]{2})([a-f0-9]{2})$/i.exec(h); return m?{r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)}:{r:0,g:0,b:0}; }
+      function lerpColor(a,b,t){ const ca=hexToRgb(a),cb=hexToRgb(b); const r=Math.round(lerp(ca.r,cb.r,t)), g=Math.round(lerp(ca.g,cb.g,t)), b_=Math.round(lerp(ca.b,cb.b,t)); return `rgb(${r},${g},${b_})`; }
+
+      function updateUI(){ scoreEl.textContent=score; const b = best ?? Number(localStorage.getItem('skyhopper_best')||0); best=b; bestEl.textContent=`שיא: ${best}`; speedEl.textContent=`מהירות: ${(SCROLL_SPEED/110).toFixed(1)}x`; }
+
+      function spawnFeathers(x,y,count=8,burst=false){
+        for(let i=0;i<count;i++){
+          const a=Math.random()*Math.PI*2;
+          const speed=burst?(80+Math.random()*140):(40+Math.random()*80);
+          const vx=Math.cos(a)*speed*(burst?1:0.5);
+          const vy=Math.sin(a)*speed*(burst?1:0.4)-(burst?20:30);
+          particles.push({x,y,vx,vy,life:burst?0.8:0.6,ttl:burst?0.8:0.6,size:2+Math.random()*2});
+        }
+      }
+      function updateParticles(dt){ const g=500; for(const p of particles){ p.vy+=g*dt; p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; } particles=particles.filter(p=>p.life>0 && p.y<WORLD.h-4); }
+      function drawParticles(){ ctx.save(); for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life/p.ttl); ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,1)'; ctx.fill(); } ctx.restore(); }
+      function toast(msg){ const box=document.createElement('div'); box.textContent=msg; box.style.cssText='position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.7);color:#fff;padding:8px 12px;border-radius:999px;font-weight:800;z-index:9999;'; document.body.appendChild(box); setTimeout(()=>{ box.style.transition='opacity .25s'; box.style.opacity='0'; setTimeout(()=>box.remove(),260); },700); }
+      function drawCountdown(){ const n=Math.ceil(countdownLeft); ctx.save(); ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.fillRect(0,0,WORLD.w,WORLD.h); ctx.fillStyle='#fff'; ctx.font='bold 72px system-ui, sans-serif'; ctx.textAlign='center'; ctx.textBaseline='middle'; const text=(countdownLeft<=0.3)?'GO!':String(n); ctx.fillText(text, WORLD.w/2, WORLD.h/2); ctx.restore(); }
+
+      function onPointer(e){
+        ensureAudio();
+        const t=e&&e.target;
+        if((!results.classList.contains('hidden') && results.contains(t)) || (!lobby.classList.contains('hidden') && lobby.contains(t))) return;
+        if(state==='lobby') return;
+        if(state==='gameover'){ startGame(); return; }
+        if(state==='paused'){ pauseToggle(); return; }
+        if(state==='countdown') return;
+        jump();
+      }
+      window.addEventListener('pointerdown', onPointer);
+      window.addEventListener('keydown', (e)=>{
+        if(e.code==='Space'||e.code==='ArrowUp'){ e.preventDefault(); onPointer(e); }
+        if(e.code==='Enter'){ e.preventDefault(); if(state==='lobby'||state==='gameover') startGame(); }
+        if(e.code==='Escape'){ e.preventDefault(); showOnly('lobby'); state='lobby'; }
+        if(e.code==='KeyP'){ e.preventDefault(); pauseToggle(); }
+        if(e.code==='KeyM'){ e.preventDefault(); toggleMute(); }
+        if(e.code==='KeyB'){ e.preventDefault(); toggleMusic(); }
+      });
+
+      // Lobby actions
+      modeClassic.addEventListener('click', ()=>{ training=false; modeClassic.classList.add('active'); modeTraining.classList.remove('active'); });
+      modeTraining.addEventListener('click', ()=>{ training=true; modeTraining.classList.add('active'); modeClassic.classList.remove('active'); });
+      btnStart.addEventListener('click', e=>{ e.stopPropagation(); startGame(); });
+      btnResetBest.addEventListener('click', ()=>{ try{ localStorage.removeItem('skyhopper_best'); best=0; updateUI(); alert('השיא אופס.'); }catch{} });
+      btnShare.addEventListener('click', async ()=>{ const text=`השיא שלי ב-Sky Hopper הוא ${best} נק׳`; try{ if(navigator.share){ await navigator.share({title:'Sky Hopper', text}); } else { await navigator.clipboard.writeText(text); alert('הועתק ללוח: '+text); } }catch{} });
+
+      // Results / Lobby nav
+      results.addEventListener('pointerdown', e=>e.stopPropagation());
+      btnAgain .addEventListener('pointerdown', e=>e.stopPropagation());
+      btnAgain .addEventListener('click', e=>{ e.stopPropagation(); startGame(); });
+      btnLobby .addEventListener('pointerdown', e=>e.stopPropagation());
+      btnLobby .addEventListener('click', e=>{ e.stopPropagation(); showOnly('lobby'); state='lobby'; });
+
+      // Selects
+      function setDifficulty(level){ if(level==='easy'){ SCROLL_SPEED=95; PIPE_GAP_MIN=140; PIPE_GAP_MAX=190; } else if(level==='hard'){ SCROLL_SPEED=125; PIPE_GAP_MIN=110; PIPE_GAP_MAX=150; } else { SCROLL_SPEED=110; PIPE_GAP_MIN=120; PIPE_GAP_MAX=170; } updateUI(); try{ localStorage.setItem('skyhopper_diff', level);}catch{} }
+      function applySkin(){ const map={yellow:'#ffd43b', blue:'#74c0fc', red:'#ff6b6b', mint:'#63e6be'}; document.documentElement.style.setProperty('--bird', map[selectedSkin]||'#ffd43b'); try{ localStorage.setItem('skyhopper_skin', selectedSkin);}catch{} }
+      function applyBg(){ if(selectedBg==='meadow'){ setCSS('--bg-top','#74c0fc'); setCSS('--bg-mid','#a5d8ff'); setCSS('--bg-bottom','#a3d9a5'); } else if(selectedBg==='sunset'){ setCSS('--bg-top','#ff922b'); setCSS('--bg-mid','#ffa8a8'); setCSS('--bg-bottom','#ffd8a8'); } else { setCSS('--bg-top','#1e3a8a'); setCSS('--bg-mid','#1d4ed8'); setCSS('--bg-bottom','#0b7285'); } try{ localStorage.setItem('skyhopper_bg', selectedBg);}catch{} }
+      function setCSS(v,val){ document.documentElement.style.setProperty(v,val); }
+      selDiff.addEventListener('change', e=> setDifficulty(e.target.value));
+      selSkin.addEventListener('change', e=>{ selectedSkin=e.target.value; applySkin(); });
+      selBg  .addEventListener('change', e=>{ selectedBg=e.target.value; applyBg(); });
+
+      // Pause / Mute / Music
+      function pauseToggle(){ if(state==='playing'){ state='paused'; btnPause.textContent='▶️'; lastT=0; } else if(state==='paused'){ state='playing'; btnPause.textContent='⏸️'; } }
+      function toggleMute(){ ensureAudio(); muted=!muted; btnMute.textContent= muted?'🔇':'🔊'; }
+      function toggleMusic(){ ensureAudio(); if(musicOn){ stopMusic(); } else { startMusic(); } }
+      btnPause.addEventListener('click', pauseToggle);
+      btnMute .addEventListener('click', toggleMute);
+      btnMusic.addEventListener('click', toggleMusic);
+      btnHome .addEventListener('pointerdown', e=>e.stopPropagation());
+      btnHome .addEventListener('click', e=>{ e.stopPropagation(); showOnly('lobby'); state='lobby'; });
+
+      // GAME
+      function spawnPipe(){
+        const gap=rand(PIPE_GAP_MIN, PIPE_GAP_MAX);
+        const margin=40;
+        const topH=rand(margin, WORLD.h-GROUND_H-margin-gap);
+        const bottomY=topH+gap;
+        const centerY=topH+gap/2;
+        pipes.push({x:WORLD.w+20, topH, bottomY, centerY, passed:false});
+      }
+      function jump(){ if(state!=='playing') return; bird.vy=JUMP_VELOCITY; sfx.jump(); vibrate(12); spawnFeathers(bird.x,bird.y,6,false); bird.eyeClosed=false; bird.blinkT=Math.random()*1.5+1.2; }
+      function drawBackground(dt){
+        dayPhase += dt*0.03; const t=(Math.sin(dayPhase)+1)/2;
+        const top=lerpColor(getCss('--bg-top'),'#4dabf7', t*0.4);
+        const mid=lerpColor(getCss('--bg-mid'),'#ffc9c9', t*0.25);
+        const grad=ctx.createLinearGradient(0,0,0,WORLD.h);
+        grad.addColorStop(0, top); grad.addColorStop(0.55, mid); grad.addColorStop(0.85, getCss('--bg-bottom'));
+        ctx.fillStyle=grad; ctx.fillRect(0,0,WORLD.w,WORLD.h);
+        ctx.save(); ctx.globalAlpha=0.35; const tCloud=(Date.now()/40)%WORLD.w;
+        for(let i=0;i<5;i++){ const x=(i*120 - tCloud + WORLD.w)%WORLD.w; drawCloud(x, 90+(i%3)*30, 20+(i%2)*6); }
+        ctx.restore();
+        ctx.fillStyle=getCss('--bg-bottom'); ctx.fillRect(0, WORLD.h-GROUND_H, WORLD.w, GROUND_H);
+        ctx.fillStyle='rgba(255,255,255,.15)'; for(let i=0;i<20;i++){ const x=(i*40 - (Date.now()/40)%40); ctx.fillRect((x%WORLD.w), WORLD.h-GROUND_H+8+(i%3)*6, 24, 2); }
+      }
+      function drawCloud(x,y,s){ ctx.fillStyle='white'; ctx.beginPath(); ctx.arc(x,y,s,0,Math.PI*2); ctx.arc(x+s*0.9,y-6,s*0.85,0,Math.PI*2); ctx.arc(x+s*1.8,y,s*1.05,0,Math.PI*2); ctx.fill(); }
+      function drawPipes(){ for(const p of pipes){ const lip=8; ctx.fillStyle=getCss('--tube'); ctx.fillRect(p.x,0,PIPE_W,p.topH); ctx.fillStyle=getCss('--tubeLip'); ctx.fillRect(p.x-4,p.topH-lip,PIPE_W+8,lip); const bottomH=WORLD.h-GROUND_H-p.bottomY; ctx.fillStyle=getCss('--tube'); ctx.fillRect(p.x,p.bottomY,PIPE_W,bottomH); ctx.fillStyle=getCss('--tubeLip'); ctx.fillRect(p.x-4,p.bottomY,PIPE_W+8,lip);} }
+      function drawBird(){ const {x,y,r}=bird; ctx.save(); ctx.translate(x,y); ctx.rotate(bird.rot); ctx.fillStyle=getCss('--bird'); ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.fill(); ctx.fillStyle='rgba(0,0,0,.1)'; ctx.beginPath(); ctx.ellipse(-2,4,r*0.7,r*0.45,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ffa94d'; ctx.beginPath(); ctx.moveTo(r*0.8,-2); ctx.lineTo(r*1.35,0); ctx.lineTo(r*0.8,2); ctx.closePath(); ctx.fill(); ctx.fillStyle=getCss('--birdEye'); if(bird.eyeClosed){ ctx.fillRect(r*0.2,-3, r*0.3, 2);} else { ctx.beginPath(); ctx.arc(r*0.35,-3, r*0.14, 0, Math.PI*2); ctx.fill(); } ctx.restore(); }
+
+      // PERFECT PASS & ACHIEVEMENTS
+      function handlePipeInteractions(p){
+        if(!p.passed && (p.x+PIPE_W) < bird.x - bird.r){
+          p.passed=true;
+          score++; updateUI(); sfx.point();
+          if(FEATURES.perfectPass){
+            const center=p.centerY ?? (p.bottomY - (p.bottomY - p.topH)/2);
+            const dy=Math.abs(bird.y-center);
+            if(dy <= FEATURES.perfectTolerance){
+              perfectsTotal++; perfectCombo++; perfectComboMax=Math.max(perfectComboMax, perfectCombo);
+              if(FEATURES.perfectBonus){ score+=FEATURES.perfectBonus; updateUI(); }
+              spawnFeathers(bird.x,bird.y,10,true); try{ toast('Perfect+'+(FEATURES.perfectBonus||0)); }catch{}
+            } else { perfectCombo=0; }
+          }
+        }
+        const bottomH=WORLD.h-GROUND_H-p.bottomY;
+        const hitTop=circleRectCollide(bird.x,bird.y,bird.r,p.x,0,PIPE_W,p.topH);
+        const hitBot=circleRectCollide(bird.x,bird.y,bird.r,p.x,p.bottomY,PIPE_W,bottomH);
+        return (hitTop||hitBot);
+      }
+      const ACHIEVEMENTS={
+        first10:{title:'10 נק׳ ראשונות', check:()=>!training && score>=10},
+        silver15:{title:'15 נק׳ — כסף',  check:()=>!training && score>=15},
+        gold25:{ title:'25 נק׳ — זהב',   check:()=>!training && score>=25},
+        perfect3:{title:'3 Perfect ברצף', check:()=>perfectComboMax>=3},
+        perfect10:{title:'10 Perfect בסה"כ', check:()=>perfectsTotal>=10},
+      };
+      function loadAch(){ try{ return JSON.parse(localStorage.getItem('skyhopper_ach')||'{}'); }catch{return{};} }
+      function saveAch(m){ try{ localStorage.setItem('skyhopper_ach', JSON.stringify(m)); }catch{} }
+      function checkAndUnlockAchievements(){ if(!FEATURES.achievements) return []; const map=loadAch(); const newly=[]; for(const [k,a] of Object.entries(ACHIEVEMENTS)){ if(map[k]) continue; if(a.check()){ map[k]=Date.now(); newly.push(a.title); } } saveAch(map); return newly; }
+
+      // LOOP
+      function tick(ts){
+        if(state==='paused'){ requestAnimationFrame(tick); return; }
+        if(!lastT) lastT=ts; let dt=(ts-lastT)/1000; dt=Math.min(dt,1/30); lastT=ts;
+        if(state==='playing'){
+          difficultyTimer += dt; if(difficultyTimer>=8){ difficultyTimer=0; SCROLL_SPEED=Math.min(110*1.8, SCROLL_SPEED*1.05); updateUI(); }
+          bird.vy += GRAVITY*dt; bird.y += bird.vy*dt; bird.rot = Math.max(-0.5, Math.min(1.2, (bird.vy/400)));
+          bird.blinkT -= dt; if(bird.blinkT<=0){ bird.eyeClosed=true; bird.blinkT=Math.random()*2.5+1.6; setTimeout(()=>{ bird.eyeClosed=false; }, 120); }
+          if(pipes.length===0 || (WORLD.w - (pipes[pipes.length-1].x)) >= PIPE_SPACING){ spawnPipe(); }
+          for(const p of pipes){ p.x -= SCROLL_SPEED*dt; }
+          pipes=pipes.filter(p=>p.x+PIPE_W>-40);
+          for(const p of pipes){ if(handlePipeInteractions(p)){ gameOver(); } }
+          if((bird.y + bird.r >= WORLD.h-GROUND_H) || (bird.y - bird.r <= 0)){ gameOver(); }
+        }
+        if(state==='countdown'){ countdownLeft -= dt; if(countdownLeft<=0){ state='playing'; } }
+        shakeTime=Math.max(0, shakeTime-dt);
+        updateParticles(dt);
+
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.save();
+        if(shakeTime>0){ const t=Math.max(0,shakeTime/shakeDur); const mag=shakeMag*t; const dx=(Math.random()*2-1)*mag, dy=(Math.random()*2-1)*mag; ctx.translate(dx,dy); }
+        drawBackground(dt); drawPipes(); drawBird(); drawParticles(); if(state==='countdown'){ drawCountdown(); }
+        ctx.restore();
+        requestAnimationFrame(tick);
+      }
+
+      // BOOT
+      function boot(){
+        try{
+          selectedSkin=localStorage.getItem('skyhopper_skin')||'yellow';
+          selectedBg=localStorage.getItem('skyhopper_bg')||'meadow';
+          const d=localStorage.getItem('skyhopper_diff')||'normal';
+          selDiff.value=d; setDifficulty(d);
+          selSkin.value=selectedSkin; applySkin();
+          selBg.value=selectedBg; applyBg();
+        }catch{}
+        updateUI(); resetGame(); requestAnimationFrame(tick); showOnly('lobby');
+      }
+      boot();
+
+      // TESTS (do not modify existing; only add)
+      function runTests(){
+        const tests=[];
+        function t(name, fn){
+          const snap={state,training,score,SCROLL_SPEED,DEBUG_skip:DEBUG.skipCountdown,particlesLen:particles.length,shakeTime};
+          try{ fn(); console.info('✅',name); tests.push({name,ok:true}); }
+          catch(err){ console.error('❌',name,err); tests.push({name,ok:false,err:String(err)}); }
+          finally{
+            state=snap.state; training=snap.training; SCROLL_SPEED=snap.SCROLL_SPEED; DEBUG.skipCountdown=snap.DEBUG_skip;
+            particles=Array(snap.particlesLen).fill(null); shakeTime=snap.shakeTime;
+            resetGame(); if(state==='lobby') showOnly('lobby'); else if(state==='gameover') showOnly('results'); else showOnly(null); updateUI();
+          }
+        }
+
+        // Existing tests (unchanged)
+        t('DOM elements exist', ()=>{ if(!canvas || !scoreEl || !bestEl || !btnStart || !btnHome) throw new Error('missing element'); });
+        t('showOnly("lobby") shows lobby and hides results', ()=>{ showOnly('results'); if(results.classList.contains('hidden')) throw new Error('results hidden'); showOnly('lobby'); if(lobby.classList.contains('hidden')) throw new Error('lobby hidden'); if(!results.classList.contains('hidden')) throw new Error('results not hidden'); });
+        t('Lobby → Start goes to countdown by default', ()=>{ state='lobby'; DEBUG.skipCountdown=false; btnStart.click(); if(state!=='countdown') throw new Error('state not countdown after start'); });
+        t('Lobby → Start sets state to playing when skipCountdown is true (legacy UX)', ()=>{ state='lobby'; DEBUG.skipCountdown=true; btnStart.click(); if(state!=='playing') throw new Error('state not playing when skipCountdown'); DEBUG.skipCountdown=false; });
+        t('GameOver → Lobby button returns to lobby', ()=>{ state='gameover'; showOnly('results'); btnLobby.click(); if(state!=='lobby') throw new Error('did not return to lobby'); });
+        t('Enter on Game Over starts a new game', ()=>{ state='gameover'; const ev=new KeyboardEvent('keydown',{code:'Enter',bubbles:true}); window.dispatchEvent(ev); if(state!=='playing') throw new Error('Enter did not start new game'); });
+        t('Home button returns from training', ()=>{ training=true; state='playing'; btnHome.click(); if(state!=='lobby') throw new Error('home did not go to lobby'); });
+        t('Escape key returns to lobby', ()=>{ state='playing'; const ev=new KeyboardEvent('keydown',{code:'Escape',bubbles:true}); window.dispatchEvent(ev); if(state!=='lobby') throw new Error('Esc did not return to lobby'); });
+
+        // Classic/Training behavior
+        t('Default mode is Classic (training=false)', ()=>{ if(training!==false) throw new Error('training should be false by default'); });
+        t('Switching to Training sets training=true', ()=>{ modeTraining.click(); if(training!==true) throw new Error('training flag not set true'); });
+        t('Switching back to Classic sets training=false', ()=>{ modeClassic.click(); if(training!==false) throw new Error('training flag not set false'); });
+        t('Classic: gameOver sets state=gameover', ()=>{ training=false; state='playing'; score=3; gameOver(); if(state!=='gameover') throw new Error('classic gameOver did not switch to results'); if(results.classList.contains('hidden')) throw new Error('results not shown'); });
+        t('Training: gameOver does not end the run', ()=>{ training=true; state='playing'; score=2; gameOver(); if(state!=='playing') throw new Error('training should not transition to gameover'); });
+
+        // New tests
+        t('Countdown ignores input', ()=>{ state='countdown'; const prev='countdown'; onPointer({target:canvas}); if(state!==prev) throw new Error('input should not change state during countdown'); });
+        t('resetGame clears particles & shake', ()=>{ spawnFeathers(100,100,5,true); shakeTime=0.2; resetGame(); if(particles.length!==0) throw new Error('particles not cleared'); if(shakeTime!==0) throw new Error('shake not cleared'); });
+        t('spawnPipe creates a valid pipe', ()=>{ const before=pipes.length; spawnPipe(); if(pipes.length!==before+1) throw new Error('spawnPipe did not push'); const p=pipes[pipes.length-1]; if(!('x' in p && 'topH' in p && 'bottomY' in p && 'centerY' in p)) throw new Error('pipe missing fields'); const gap=p.bottomY-p.topH; if(gap<PIPE_GAP_MIN || gap>PIPE_GAP_MAX) throw new Error('gap out of range'); });
+
+        t('Perfect pass adds bonus and counts', ()=>{ const tolBak=FEATURES.perfectTolerance, bonusBak=FEATURES.perfectBonus; FEATURES.perfectTolerance=999; FEATURES.perfectBonus=1; training=false; state='playing'; score=0; perfectsTotal=0; perfectCombo=0; perfectComboMax=0; bird={x:WORLD.w*0.28,y:200,r:14,vy:0,rot:0,blinkT:1,eyeClosed:false}; const gap=150, topH=100, bottomY=topH+gap, centerY=topH+gap/2; bird.y=centerY; const p={x:bird.x - bird.r - PIPE_W - 1, topH, bottomY, centerY, passed:false}; const hit=handlePipeInteractions(p); if(hit) throw new Error('should not collide'); if(score<2) throw new Error('expected score 2 (1 pass + 1 perfect bonus)'); if(perfectsTotal<1 || perfectCombo<1) throw new Error('perfect counters not updated'); FEATURES.perfectTolerance=tolBak; FEATURES.perfectBonus=bonusBak; });
+
+        t('Non-perfect resets combo', ()=>{ training=false; state='playing'; perfectCombo=2; score=0; const gap=150, topH=100, bottomY=topH+gap, centerY=topH+gap/2; bird.y=centerY+50; const p={x:bird.x - bird.r - PIPE_W - 1, topH, bottomY, centerY, passed:false}; handlePipeInteractions(p); if(perfectCombo!==0) throw new Error('perfect combo should reset on non-perfect'); });
+
+        t('Achievements unlock when conditions met', ()=>{ try{ localStorage.removeItem('skyhopper_ach'); }catch{} training=false; score=25; perfectComboMax=3; perfectsTotal=10; const got=checkAndUnlockAchievements(); if(!got || got.length<1) throw new Error('expected at least one achievement to unlock'); });
+
+        window.__skyhopperTestResults = tests;
+        // Cleanup
+        training=false; state='lobby'; resetGame(); showOnly('lobby'); updateUI();
+      }
+      runTests();
+    }
+
+    if(document.readyState==='loading'){ window.addEventListener('DOMContentLoaded', main, {once:true}); } else { main(); }
+  })();
+  </script>
+</body>
+</html>
